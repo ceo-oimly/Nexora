@@ -16,6 +16,7 @@ service cloud.firestore {
 
     function isAdmin() {
       return isSignedIn() && (
+        request.auth.token.email == 'solfeggioroots@gmail.com' ||
         request.auth.token.email == 'ifeanyiobiora83@gmail.com' ||
         request.auth.token.admin == true ||
         (exists(/databases/$(database)/documents/profiles/$(request.auth.uid)) &&
@@ -55,6 +56,27 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // Deposits
+    match /deposits/{depositId} {
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && (request.resource.data.userId == request.auth.uid || isAdmin());
+      allow update, delete: if isAdmin();
+    }
+
+    // Withdrawals
+    match /withdrawals/{withdrawalId} {
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && (request.resource.data.userId == request.auth.uid || isAdmin());
+      allow update, delete: if isAdmin();
+    }
+
+    // Admin Notifications & Dispatches
+    match /admin_notifications/{notificationId} {
+      allow read: if isSignedIn() || isAdmin();
+      allow create: if isSignedIn() || true;
+      allow update, delete: if isAdmin();
+    }
+
     // Ledger Entries
     match /ledger_entries/{entryId} {
       allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
@@ -80,15 +102,8 @@ service cloud.firestore {
 
     // Deposit Settings (Wallet addresses and QR codes set by admin)
     match /deposit_settings/{settingId} {
-      allow read: if isSignedIn() || true;
+      allow read: if true;
       allow write: if isAdmin();
-    }
-
-    // User Deposits (Deposit notifications with txHash and proof receipts)
-    match /deposits/{depositId} {
-      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow create: if isSignedIn() && (request.resource.data.userId == request.auth.uid || isAdmin());
-      allow update, delete: if isAdmin();
     }
   }
 }

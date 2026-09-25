@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import {
   getAdminStats,
@@ -17,7 +17,14 @@ import {
   approveDeposit,
   rejectDeposit,
 } from '../../services/ledgerService';
-import { DepositSetting, DepositRequest } from '../../types/exchange';
+import {
+  getAdminNotifications,
+  markNotificationAsRead,
+  markAllNotificationsAsRead,
+  subscribeToAdminNotifications,
+  getAdminEmailAddress,
+} from '../../services/notificationService';
+import { DepositSetting, DepositRequest, AdminNotification } from '../../types/exchange';
 import {
   ShieldAlert,
   Users,
@@ -36,14 +43,20 @@ import {
   Check,
   Save,
   Wallet,
+  Mail,
+  ExternalLink,
+  Copy,
+  AlertTriangle,
+  RefreshCw,
 } from 'lucide-react';
 
 export const AdminDashboard: React.FC = () => {
   const { user, isAdmin } = useAuth();
-  const [activeTab, setActiveTab] = useState<'deposits' | 'withdrawals' | 'users' | 'transactions' | 'support' | 'audit'>('deposits');
+  const [activeTab, setActiveTab] = useState<'deposits' | 'withdrawals' | 'alerts' | 'users' | 'transactions' | 'support' | 'audit'>('deposits');
   const [userSearch, setUserSearch] = useState('');
   const [ticketReply, setTicketReply] = useState<{ id: string; text: string }>({ id: '', text: '' });
   const [actionNotice, setActionNotice] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   // Deposit Config State
   const initialSetting = getDepositSetting('BTC');
@@ -52,6 +65,17 @@ export const AdminDashboard: React.FC = () => {
   const [qrCodeUrl, setQrCodeUrl] = useState(initialSetting.qrCodeUrl || '');
   const [qrPreview, setQrPreview] = useState(initialSetting.qrCodeUrl || '');
   const [savingConfig, setSavingConfig] = useState(false);
+
+  // Real-time Admin Notifications
+  const [notifications, setNotifications] = useState<AdminNotification[]>(getAdminNotifications());
+  const adminEmail = getAdminEmailAddress();
+
+  useEffect(() => {
+    const unsubscribe = subscribeToAdminNotifications((items) => {
+      setNotifications(items);
+    });
+    return unsubscribe;
+  }, []);
 
   if (!user || !isAdmin) {
     return (
@@ -77,6 +101,10 @@ export const AdminDashboard: React.FC = () => {
   const tickets = getAllTickets();
   const auditLogs = getAuditLogs();
   const transactions = getAllTransactions();
+
+  const pendingDeposits = deposits.filter((d) => d.status === 'PENDING');
+  const pendingWithdrawals = withdrawals.filter((w) => w.status === 'PENDING');
+  const unreadAlerts = notifications.filter((n) => !n.read);
 
   const handleApproveWithdrawal = (id: string) => {
     approveWithdrawal(user.userId, id);
@@ -149,16 +177,27 @@ export const AdminDashboard: React.FC = () => {
     setTimeout(() => setActionNotice(null), 4000);
   };
 
+  const copyToClipboard = (text: string, id: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2500);
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-extrabold text-slate-900 flex items-center gap-2.5">
-            <ShieldAlert className="w-6 h-6 text-blue-600" /> Exchange Administration Terminal
-          </h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-extrabold text-slate-900 flex items-center gap-2.5">
+              <ShieldAlert className="w-6 h-6 text-blue-600" /> Exchange Administration Terminal
+            </h1>
+            <span className="px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800 text-xs font-bold font-mono">
+              {adminEmail}
+            </span>
+          </div>
           <p className="text-xs text-slate-500 mt-1">
-            Supervisory wallet configuration, incoming deposit approvals, withdrawal disbursements, and audit logs.
+            Supervisory wallet configuration, incoming deposit approvals, withdrawal disbursements, and email notification dispatches.
           </p>
         </div>
 
@@ -168,6 +207,44 @@ export const AdminDashboard: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Immediate Alert Notification Banner when Requests are Pending */}
+      {(pendingDeposits.length > 0 || pendingWithdrawals.length > 0) && (
+        <div className="p-4 bg-gradient-to-r from-amber-50 to-blue-50 border border-amber-200 rounded-2xl flex flex-wrap items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center font-bold">
+              <AlertTriangle className="w-5 h-5 animate-pulse" />
+            </div>
+            <div>
+              <div className="text-xs font-extrabold text-slate-900">
+                Action Required: {pendingDeposits.length} Pending Deposits &bull; {pendingWithdrawals.length} Pending Withdrawals
+              </div>
+              <div className="text-[11px] text-slate-600">
+                Official alerts have been dispatched to admin email: <span className="font-mono font-bold text-blue-700">{adminEmail}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {pendingDeposits.length > 0 && (
+              <button
+                onClick={() => setActiveTab('deposits')}
+                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg shadow-xs transition-colors"
+              >
+                Review Deposits ({pendingDeposits.length})
+              </button>
+            )}
+            {pendingWithdrawals.length > 0 && (
+              <button
+                onClick={() => setActiveTab('withdrawals')}
+                className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-lg shadow-xs transition-colors"
+              >
+                Review Withdrawals ({pendingWithdrawals.length})
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* 1. Platform Metric Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -184,24 +261,13 @@ export const AdminDashboard: React.FC = () => {
 
         <div className="p-5 bg-white border border-slate-200 rounded-2xl shadow-xs">
           <div className="flex items-center justify-between text-slate-500 text-xs font-medium">
-            <span>Trading Volume</span>
-            <TrendingUp className="w-4 h-4 text-blue-600" />
-          </div>
-          <div className="text-2xl font-extrabold text-slate-900 mt-2 font-mono-numbers">
-            ${stats.tradingVolumeUsd.toLocaleString()}
-          </div>
-          <div className="text-xs text-slate-500 mt-1">Spot Ledger Fills</div>
-        </div>
-
-        <div className="p-5 bg-white border border-slate-200 rounded-2xl shadow-xs">
-          <div className="flex items-center justify-between text-slate-500 text-xs font-medium">
             <span>Pending Deposits</span>
             <ArrowDownLeft className="w-4 h-4 text-blue-600" />
           </div>
           <div className="text-2xl font-extrabold text-blue-700 mt-2 font-mono-numbers">
-            {stats.pendingDeposits || deposits.filter(d => d.status === 'PENDING').length}
+            {pendingDeposits.length}
           </div>
-          <div className="text-xs text-blue-600 font-semibold mt-1">Awaiting Credit</div>
+          <div className="text-xs text-blue-600 font-semibold mt-1">Awaiting Blockchain Credit</div>
         </div>
 
         <div className="p-5 bg-white border border-slate-200 rounded-2xl shadow-xs">
@@ -210,17 +276,29 @@ export const AdminDashboard: React.FC = () => {
             <Clock className="w-4 h-4 text-amber-500" />
           </div>
           <div className="text-2xl font-extrabold text-amber-600 mt-2 font-mono-numbers">
-            {stats.pendingWithdrawals}
+            {pendingWithdrawals.length}
           </div>
-          <div className="text-xs text-amber-700 font-semibold mt-1">Awaiting Clearance</div>
+          <div className="text-xs text-amber-700 font-semibold mt-1">Awaiting Admin Approval</div>
+        </div>
+
+        <div className="p-5 bg-white border border-slate-200 rounded-2xl shadow-xs">
+          <div className="flex items-center justify-between text-slate-500 text-xs font-medium">
+            <span>Dispatched Alerts</span>
+            <Mail className="w-4 h-4 text-indigo-600" />
+          </div>
+          <div className="text-2xl font-extrabold text-indigo-700 mt-2 font-mono-numbers">
+            {notifications.length}
+          </div>
+          <div className="text-xs text-indigo-600 font-semibold mt-1">Sent to {adminEmail.split('@')[0]}...</div>
         </div>
       </div>
 
       {/* 2. Admin Tab Navigation */}
       <div className="flex items-center gap-1.5 bg-slate-100 p-1.5 rounded-2xl border border-slate-200 text-xs overflow-x-auto">
         {[
-          { id: 'deposits', label: `Deposit Config & Inflows (${deposits.filter(d => d.status === 'PENDING').length} Pending)`, icon: Wallet },
-          { id: 'withdrawals', label: `Withdrawals (${stats.pendingWithdrawals})`, icon: ArrowUpRight },
+          { id: 'deposits', label: `Deposit Config & Inflows (${pendingDeposits.length} Pending)`, icon: Wallet },
+          { id: 'withdrawals', label: `Withdrawals (${pendingWithdrawals.length} Pending)`, icon: ArrowUpRight },
+          { id: 'alerts', label: `Email Alerts (${notifications.length})`, icon: Mail },
           { id: 'users', label: `User Directory (${stats.totalUsers})`, icon: Users },
           { id: 'transactions', label: `Transactions (${transactions.length})`, icon: TrendingUp },
           { id: 'support', label: `Support Desk (${stats.openTickets} Open)`, icon: MessageSquare },
@@ -246,19 +324,26 @@ export const AdminDashboard: React.FC = () => {
       </div>
 
       {/* 3. Tab Contents */}
-      {/* DEPOSIT CONFIGURATION & INCOMING DEPOSIT REVIEWS */}
+
+      {/* TAB: DEPOSITS & UPLOAD BTC WALLET ADDRESS */}
       {activeTab === 'deposits' && (
         <div className="space-y-6 text-xs">
           {/* Admin Wallet & QR Code Upload Card */}
           <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-5">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-3 gap-2">
               <div>
                 <h2 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
                   <QrCode className="w-5 h-5 text-blue-600" /> Admin Deposit Wallet &amp; QR Code Setup
                 </h2>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Configure the official receiving Bitcoin wallet address and upload the payment QR code displayed to depositors.
+                  Configure the official receiving Bitcoin (BTC) address and payment QR code that users see when depositing.
                 </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-bold flex items-center gap-1">
+                  <CheckCircle className="w-3.5 h-3.5" /> Published to Depositors
+                </span>
               </div>
             </div>
 
@@ -268,16 +353,25 @@ export const AdminDashboard: React.FC = () => {
                   <label className="text-xs font-bold text-slate-700 block mb-1">
                     Official Receiving Bitcoin (BTC) Address
                   </label>
-                  <input
-                    type="text"
-                    value={btcWalletAddress}
-                    onChange={(e) => setBtcWalletAddress(e.target.value)}
-                    placeholder="e.g. bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 font-mono-numbers focus:outline-none focus:border-blue-500 font-semibold"
-                    required
-                  />
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={btcWalletAddress}
+                      onChange={(e) => setBtcWalletAddress(e.target.value)}
+                      placeholder="e.g. bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-4 pr-10 py-2.5 text-xs text-slate-900 font-mono-numbers focus:outline-none focus:border-blue-500 font-semibold"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard(btcWalletAddress, 'cfg-addr')}
+                      className="absolute right-2.5 top-2.5 text-slate-400 hover:text-blue-600"
+                    >
+                      {copiedId === 'cfg-addr' ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
+                    </button>
+                  </div>
                   <span className="text-[11px] text-slate-400 mt-1 block">
-                    This is the destination address that all users will copy when making Bitcoin payments.
+                    Depositors copy this exact destination address when funding their NEXORA balance.
                   </span>
                 </div>
 
@@ -319,33 +413,39 @@ export const AdminDashboard: React.FC = () => {
                   className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs shadow-md shadow-blue-600/20 flex items-center gap-2 transition-all active:scale-95"
                 >
                   <Save className="w-4 h-4" />
-                  {savingConfig ? 'Saving Settings...' : 'Save & Publish Deposit Configuration'}
+                  {savingConfig ? 'Publishing...' : 'Save & Publish Deposit Configuration'}
                 </button>
               </div>
 
               {/* QR Code Live Preview */}
               <div className="md:col-span-4 flex flex-col items-center justify-center p-5 bg-slate-50 rounded-2xl border border-slate-200">
-                <span className="text-xs font-bold text-slate-700 mb-3">Live QR Code Preview</span>
-                <div className="w-40 h-40 bg-white p-2.5 rounded-xl shadow-xs border border-slate-200 flex items-center justify-center overflow-hidden">
+                <span className="text-xs font-bold text-slate-700 mb-3">Live Depositor QR Preview</span>
+                <div className="w-44 h-44 bg-white p-3 rounded-2xl shadow-xs border border-slate-200 flex items-center justify-center overflow-hidden">
                   {qrPreview ? (
                     <img src={qrPreview} alt="QR Code Preview" className="w-full h-full object-contain" />
                   ) : (
-                    <div className="text-center p-2 text-slate-400 text-[11px]">
-                      No custom QR image uploaded. Default SVG will display.
+                    <div className="text-center p-2 text-slate-400 text-[11px] flex flex-col items-center">
+                      <QrCode className="w-10 h-10 text-slate-300 mb-1" />
+                      Default QR code active
                     </div>
                   )}
                 </div>
-                <span className="text-[11px] text-slate-500 mt-2 font-mono-numbers">Bitcoin Network</span>
+                <span className="text-[11px] text-slate-500 mt-2 font-mono-numbers">Bitcoin Network Native</span>
               </div>
             </form>
           </div>
 
           {/* Incoming User Deposits Verification Table */}
           <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm">
-            <div className="px-6 py-4.5 border-b border-slate-200 flex items-center justify-between">
+            <div className="px-6 py-4.5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
               <div>
                 <h2 className="text-sm font-extrabold text-slate-900">Incoming User Deposit Submissions</h2>
-                <p className="text-xs text-slate-500">Verify user payment hashes and credit balances to wallets.</p>
+                <p className="text-xs text-slate-500">
+                  Verify user blockchain transaction hashes and credit balances to wallets with double-entry ledger tracking.
+                </p>
+              </div>
+              <div className="text-xs font-bold text-blue-700 bg-blue-50 px-3 py-1 rounded-xl border border-blue-200">
+                Alerts Dispatched To: {adminEmail}
               </div>
             </div>
 
@@ -357,22 +457,22 @@ export const AdminDashboard: React.FC = () => {
                   <thead className="bg-slate-50 text-[10px] text-slate-500 uppercase tracking-wider border-b border-slate-200">
                     <tr>
                       <th className="px-6 py-3.5">Deposit ID</th>
-                      <th className="px-4 py-3.5">User</th>
+                      <th className="px-4 py-3.5">Trader Email</th>
                       <th className="px-4 py-3.5">Amount</th>
                       <th className="px-4 py-3.5">USD Value</th>
                       <th className="px-4 py-3.5">Transaction Hash (TXID)</th>
                       <th className="px-4 py-3.5">Receipt</th>
                       <th className="px-4 py-3.5">Status</th>
-                      <th className="px-6 py-3.5 text-right">Verification Action</th>
+                      <th className="px-6 py-3.5 text-right">Administrative Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {deposits.map((dep) => (
                       <tr key={dep.id} className="hover:bg-slate-50/80 transition-colors">
                         <td className="px-6 py-3.5 font-bold text-slate-900">{dep.id}</td>
-                        <td className="px-4 py-3.5 text-slate-700">
+                        <td className="px-4 py-3.5 text-slate-700 font-sans">
                           <div className="font-bold text-slate-900">{dep.userEmail}</div>
-                          <div className="text-[10px] text-slate-400">{dep.userId}</div>
+                          <div className="text-[10px] text-slate-400 font-mono">{dep.userId}</div>
                         </td>
                         <td className="px-4 py-3.5 font-bold text-blue-700">
                           {dep.amount} {dep.asset}
@@ -380,16 +480,26 @@ export const AdminDashboard: React.FC = () => {
                         <td className="px-4 py-3.5 font-semibold text-slate-800">
                           ${dep.usdAmount.toLocaleString()}
                         </td>
-                        <td className="px-4 py-3.5 text-slate-500 truncate max-w-xs">{dep.txHash}</td>
+                        <td className="px-4 py-3.5 text-slate-600 truncate max-w-xs font-mono text-[11px]">
+                          <div className="flex items-center gap-1.5">
+                            <span className="truncate">{dep.txHash}</span>
+                            <button
+                              onClick={() => copyToClipboard(dep.txHash, `tx-${dep.id}`)}
+                              className="text-slate-400 hover:text-blue-600 shrink-0"
+                            >
+                              {copiedId === `tx-${dep.id}` ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                            </button>
+                          </div>
+                        </td>
                         <td className="px-4 py-3.5">
                           {dep.proofReceiptUrl ? (
                             <a
                               href={dep.proofReceiptUrl}
                               target="_blank"
                               rel="noreferrer"
-                              className="text-blue-600 font-bold hover:underline text-xs"
+                              className="text-blue-600 font-bold hover:underline text-xs flex items-center gap-1"
                             >
-                              View Receipt
+                              <span>Receipt</span> <ExternalLink className="w-3 h-3" />
                             </a>
                           ) : (
                             <span className="text-slate-400 text-[11px]">N/A</span>
@@ -413,13 +523,13 @@ export const AdminDashboard: React.FC = () => {
                             <div className="flex items-center justify-end gap-1.5">
                               <button
                                 onClick={() => handleApproveDeposit(dep.id)}
-                                className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors"
+                                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors"
                               >
                                 Credit Wallet
                               </button>
                               <button
                                 onClick={() => handleRejectDeposit(dep.id)}
-                                className="px-3 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-bold transition-colors"
+                                className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-bold transition-colors"
                               >
                                 Reject
                               </button>
@@ -438,12 +548,19 @@ export const AdminDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* WITHDRAWALS APPROVAL/REJECTION */}
+      {/* TAB: WITHDRAWALS APPROVAL & CLEARANCE */}
       {activeTab === 'withdrawals' && (
         <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm text-xs font-mono-numbers">
-          <div className="px-6 py-4.5 border-b border-slate-200 flex items-center justify-between">
-            <h2 className="text-sm font-extrabold text-slate-900">Review Withdrawal Requests</h2>
-            <span className="text-xs text-slate-500">Atomic ledger updates on disbursement</span>
+          <div className="px-6 py-4.5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h2 className="text-sm font-extrabold text-slate-900">Review &amp; Approve Withdrawal Requests</h2>
+              <p className="text-xs text-slate-500 font-sans">
+                Approve pending client withdrawals to permanently disburse funds and execute double-entry ledger debit.
+              </p>
+            </div>
+            <div className="text-xs font-bold text-amber-700 bg-amber-50 px-3 py-1 rounded-xl border border-amber-200 font-sans">
+              Email Notifications Sent to: {adminEmail}
+            </div>
           </div>
 
           <div className="overflow-x-auto">
@@ -453,24 +570,27 @@ export const AdminDashboard: React.FC = () => {
               <table className="w-full text-left">
                 <thead className="bg-slate-50 text-[10px] text-slate-500 uppercase tracking-wider border-b border-slate-200">
                   <tr>
-                    <th className="px-6 py-3.5">User</th>
+                    <th className="px-6 py-3.5">Trader / User</th>
                     <th className="px-4 py-3.5">Method</th>
-                    <th className="px-4 py-3.5">Asset &amp; Amount</th>
+                    <th className="px-4 py-3.5">Requested Amount</th>
                     <th className="px-4 py-3.5">Destination Details</th>
                     <th className="px-4 py-3.5">Status</th>
                     <th className="px-4 py-3.5">Submitted</th>
-                    <th className="px-6 py-3.5 text-right">Review Action</th>
+                    <th className="px-6 py-3.5 text-right">Clearance Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {withdrawals.map((w) => (
                     <tr key={w.id} className="hover:bg-slate-50/80 transition-colors">
-                      <td className="px-6 py-3.5 font-bold text-slate-900">{w.userId}</td>
-                      <td className="px-4 py-3.5 font-medium text-slate-700">{w.withdrawalType}</td>
-                      <td className="px-4 py-3.5 font-bold text-blue-700">
-                        {w.amount} {w.asset} (Fee: {w.fee})
+                      <td className="px-6 py-3.5 font-bold text-slate-900 font-sans">
+                        <div>{w.userEmail || w.userId}</div>
+                        <div className="text-[10px] text-slate-400 font-mono">{w.userId}</div>
                       </td>
-                      <td className="px-4 py-3.5 text-slate-500 text-[11px] truncate max-w-xs">
+                      <td className="px-4 py-3.5 font-medium text-slate-700 font-sans">{w.withdrawalType}</td>
+                      <td className="px-4 py-3.5 font-bold text-blue-700">
+                        {w.amount} {w.asset} <span className="text-slate-400 text-[10px] font-normal">(Fee: {w.fee})</span>
+                      </td>
+                      <td className="px-4 py-3.5 text-slate-600 text-[11px] truncate max-w-xs font-mono">
                         {w.withdrawalType === 'CRYPTO'
                           ? w.destinationAddress
                           : `${w.bankDetails?.bankName} (Acct: ${w.bankDetails?.accountNumber})`}
@@ -496,18 +616,18 @@ export const AdminDashboard: React.FC = () => {
                           minute: '2-digit',
                         })}
                       </td>
-                      <td className="px-6 py-3.5 text-right">
+                      <td className="px-6 py-3.5 text-right font-sans">
                         {w.status === 'PENDING' ? (
                           <div className="flex items-center justify-end gap-1.5">
                             <button
                               onClick={() => handleApproveWithdrawal(w.id)}
-                              className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-colors shadow-xs"
+                              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-colors shadow-xs"
                             >
                               Approve
                             </button>
                             <button
                               onClick={() => handleRejectWithdrawal(w.id)}
-                              className="px-3 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-bold transition-colors"
+                              className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-bold transition-colors"
                             >
                               Reject
                             </button>
@@ -525,130 +645,92 @@ export const AdminDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* USER MANAGEMENT */}
-      {activeTab === 'users' && (
-        <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm text-xs">
-          <div className="px-6 py-4.5 border-b border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3">
-            <h2 className="text-sm font-extrabold text-slate-900">User Directory &amp; RBAC Permissions</h2>
-            <div className="relative w-full sm:w-64">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
-              <input
-                type="text"
-                value={userSearch}
-                onChange={(e) => setUserSearch(e.target.value)}
-                placeholder="Search user..."
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-3 py-1.5 text-xs text-slate-900"
-              />
+      {/* TAB: EMAIL ALERTS & DISPATCH LOG */}
+      {activeTab === 'alerts' && (
+        <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-5 text-xs">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-3 gap-2">
+            <div>
+              <h2 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                <Mail className="w-5 h-5 text-blue-600" /> Administrative Email Dispatches ({adminEmail})
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Every deposit and withdrawal initiation generates an immediate administrative alert dispatched to <span className="font-bold text-slate-700">{adminEmail}</span>.
+              </p>
             </div>
-          </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left font-mono-numbers">
-              <thead className="bg-slate-50 text-[10px] text-slate-500 uppercase tracking-wider border-b border-slate-200">
-                <tr>
-                  <th className="px-6 py-3.5">User</th>
-                  <th className="px-4 py-3.5">Email</th>
-                  <th className="px-4 py-3.5">Role</th>
-                  <th className="px-4 py-3.5">Status</th>
-                  <th className="px-4 py-3.5">Email Verified</th>
-                  <th className="px-6 py-3.5 text-right">Moderation</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {users.map((u) => (
-                  <tr key={u.id} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="px-6 py-3.5 font-bold text-slate-900 flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-full bg-blue-100 overflow-hidden border border-blue-200">
-                        {u.avatarUrl && <img src={u.avatarUrl} alt="" className="w-full h-full object-cover" />}
-                      </div>
-                      <span>{u.fullName}</span>
-                    </td>
-                    <td className="px-4 py-3.5 text-slate-600">{u.email}</td>
-                    <td className="px-4 py-3.5">
-                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${u.role === 'ADMIN' ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-700'}`}>
-                        {u.role}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3.5">
-                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${u.status === 'ACTIVE' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'}`}>
-                        {u.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3.5 text-slate-600">
-                      {u.emailVerified ? 'Yes (Verified)' : 'No'}
-                    </td>
-                    <td className="px-6 py-3.5 text-right">
-                      {u.role !== 'ADMIN' && (
-                        <button
-                          onClick={() => handleToggleUser(u.userId, u.status)}
-                          className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
-                            u.status === 'ACTIVE'
-                              ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200'
-                              : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200'
-                          }`}
-                        >
-                          {u.status === 'ACTIVE' ? 'Suspend' : 'Activate'}
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <button
+              onClick={() => markAllNotificationsAsRead()}
+              className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold transition-colors"
+            >
+              Mark All Read
+            </button>
           </div>
-        </div>
-      )}
-
-      {/* SUPPORT TICKETS */}
-      {activeTab === 'support' && (
-        <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm text-xs space-y-4 p-6">
-          <h2 className="text-sm font-extrabold text-slate-900">Customer Support Ticket Inquiries</h2>
 
           <div className="space-y-4">
-            {tickets.length === 0 ? (
-              <div className="py-8 text-center text-slate-400">No support tickets.</div>
+            {notifications.length === 0 ? (
+              <div className="py-12 text-center text-slate-400">
+                No notification alerts have been dispatched yet. When a user deposits or withdraws, alerts will appear here.
+              </div>
             ) : (
-              tickets.map((t) => (
-                <div key={t.id} className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-2.5 font-mono-numbers">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="font-bold text-slate-900">{t.id}</span>
-                      <span className="ml-2 text-slate-600 font-normal">({t.userEmail})</span>
-                      <span className="ml-2 text-blue-700 font-semibold">[{t.category}]</span>
+              notifications.map((notif) => (
+                <div
+                  key={notif.id}
+                  className={`p-5 rounded-2xl border transition-all ${
+                    !notif.read
+                      ? 'bg-blue-50/60 border-blue-200 shadow-xs'
+                      : 'bg-white border-slate-200'
+                  }`}
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                          notif.type === 'DEPOSIT_INITIATED'
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : 'bg-amber-100 text-amber-800'
+                        }`}
+                      >
+                        {notif.type.replace('_', ' ')}
+                      </span>
+                      <span className="font-extrabold text-slate-900 text-sm">{notif.title}</span>
+                      {!notif.read && (
+                        <span className="w-2 h-2 rounded-full bg-blue-600" />
+                      )}
                     </div>
-                    <span
-                      className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                        t.status === 'RESOLVED' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-blue-50 text-blue-700 border border-blue-200'
-                      }`}
-                    >
-                      {t.status}
-                    </span>
+
+                    <div className="text-[11px] text-slate-500 font-mono-numbers">
+                      Dispatched: {new Date(notif.createdAt).toLocaleString()}
+                    </div>
                   </div>
 
-                  <p className="text-slate-800 font-sans text-xs">{t.message}</p>
+                  <p className="text-slate-700 font-medium mb-3">{notif.message}</p>
 
-                  {t.adminResponse ? (
-                    <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-slate-800 text-xs font-sans">
-                      <strong className="text-emerald-700 block text-[10px] uppercase font-bold mb-1">Exchange Response:</strong>
-                      {t.adminResponse}
+                  {/* Email transcript preview */}
+                  <div className="bg-slate-900 text-emerald-400 font-mono p-3.5 rounded-xl text-[11px] overflow-x-auto whitespace-pre-wrap">
+                    {notif.emailBody || notif.message}
+                  </div>
+
+                  <div className="flex items-center justify-between mt-3 pt-2 border-t border-slate-100">
+                    <div className="text-slate-500 text-[11px]">
+                      Target Recipient: <span className="font-bold text-slate-800">{notif.emailRecipient}</span> &bull; Status: <span className="text-emerald-600 font-bold">{notif.emailStatus}</span>
                     </div>
-                  ) : (
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={ticketReply.id === t.id ? ticketReply.text : ''}
-                        onChange={(e) => setTicketReply({ id: t.id, text: e.target.value })}
-                        placeholder="Write official exchange resolution response..."
-                        className="flex-1 bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900"
-                      />
-                      <button
-                        onClick={() => handleSendReply(t.id)}
-                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs shadow-xs"
+
+                    <div className="flex items-center gap-2">
+                      <a
+                        href={`mailto:${notif.emailRecipient}?subject=${encodeURIComponent(notif.title)}&body=${encodeURIComponent(notif.emailBody || notif.message)}`}
+                        className="px-3 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg font-bold text-xs flex items-center gap-1 transition-colors"
                       >
-                        Reply &amp; Resolve
+                        <ExternalLink className="w-3 h-3" /> Launch Mail Client
+                      </a>
+                      <button
+                        onClick={() => copyToClipboard(notif.emailBody || notif.message, notif.id)}
+                        className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-bold text-xs flex items-center gap-1 transition-colors"
+                      >
+                        {copiedId === notif.id ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                        <span>Copy Alert</span>
                       </button>
                     </div>
-                  )}
+                  </div>
                 </div>
               ))
             )}
@@ -656,36 +738,89 @@ export const AdminDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* AUDIT LOGS */}
-      {activeTab === 'audit' && (
-        <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm text-xs font-mono-numbers">
-          <div className="px-6 py-4.5 border-b border-slate-200">
-            <h2 className="text-sm font-extrabold text-slate-900">Immutable Administrative Audit Trail</h2>
+      {/* TAB: USER DIRECTORY */}
+      {activeTab === 'users' && (
+        <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm text-xs">
+          <div className="px-6 py-4.5 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <h2 className="text-sm font-extrabold text-slate-900">Exchange Trader Accounts</h2>
+            <div className="relative w-full sm:w-64">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+              <input
+                type="text"
+                value={userSearch}
+                onChange={(e) => setUserSearch(e.target.value)}
+                placeholder="Search by name, email, or ID..."
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-3 py-2 text-xs focus:outline-none focus:border-blue-500"
+              />
+            </div>
           </div>
-          <div className="overflow-x-auto">
-            {auditLogs.length === 0 ? (
-              <div className="py-12 text-center text-slate-400">No audit log records recorded yet.</div>
+
+          <div className="overflow-x-auto font-mono-numbers">
+            {users.length === 0 ? (
+              <div className="py-12 text-center text-slate-400">No users found.</div>
             ) : (
               <table className="w-full text-left">
                 <thead className="bg-slate-50 text-[10px] text-slate-500 uppercase tracking-wider border-b border-slate-200">
                   <tr>
-                    <th className="px-6 py-3.5">Timestamp</th>
-                    <th className="px-4 py-3.5">Admin</th>
-                    <th className="px-4 py-3.5">Action Executed</th>
-                    <th className="px-4 py-3.5">Target Type</th>
-                    <th className="px-4 py-3.5">Target Identifier</th>
+                    <th className="px-6 py-3.5">Trader</th>
+                    <th className="px-4 py-3.5">User ID</th>
+                    <th className="px-4 py-3.5">Role</th>
+                    <th className="px-4 py-3.5">Status</th>
+                    <th className="px-4 py-3.5">Registered</th>
+                    <th className="px-6 py-3.5 text-right">Compliance Control</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {auditLogs.map((log) => (
-                    <tr key={log.id} className="hover:bg-slate-50/80 transition-colors">
-                      <td className="px-6 py-3.5 text-slate-500 text-[11px]">
-                        {new Date(log.createdAt).toLocaleString()}
+                  {users.map((u) => (
+                    <tr key={u.id} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="px-6 py-3.5 font-sans">
+                        <div className="font-bold text-slate-900">{u.fullName || 'Trader'}</div>
+                        <div className="text-[11px] text-slate-500">{u.email}</div>
                       </td>
-                      <td className="px-4 py-3.5 text-slate-800 font-semibold">{log.adminEmail}</td>
-                      <td className="px-4 py-3.5 text-blue-700 font-bold">{log.action}</td>
-                      <td className="px-4 py-3.5 text-slate-600">{log.targetType}</td>
-                      <td className="px-4 py-3.5 text-slate-800">{log.targetId}</td>
+                      <td className="px-4 py-3.5 text-slate-500 text-[11px] font-mono">{u.userId}</td>
+                      <td className="px-4 py-3.5 font-sans">
+                        <span
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            u.role === 'ADMIN'
+                              ? 'bg-blue-100 text-blue-800 font-extrabold'
+                              : 'bg-slate-100 text-slate-700'
+                          }`}
+                        >
+                          {u.role}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3.5 font-sans">
+                        <span
+                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                            u.status === 'ACTIVE'
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                              : 'bg-rose-50 text-rose-700 border border-rose-200'
+                          }`}
+                        >
+                          {u.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3.5 text-slate-500 text-[11px]">
+                        {new Date(u.createdAt).toLocaleDateString([], {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric',
+                        })}
+                      </td>
+                      <td className="px-6 py-3.5 text-right font-sans">
+                        {u.role !== 'ADMIN' && (
+                          <button
+                            onClick={() => handleToggleUser(u.userId, u.status)}
+                            className={`px-3 py-1 rounded-lg text-xs font-bold transition-colors ${
+                              u.status === 'ACTIVE'
+                                ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200'
+                                : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200'
+                            }`}
+                          >
+                            {u.status === 'ACTIVE' ? 'Suspend' : 'Activate'}
+                          </button>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -695,46 +830,130 @@ export const AdminDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* TRANSACTIONS */}
+      {/* TAB: TRANSACTIONS */}
       {activeTab === 'transactions' && (
         <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm text-xs font-mono-numbers">
-          <div className="px-6 py-4.5 border-b border-slate-200">
-            <h2 className="text-sm font-extrabold text-slate-900">All Exchange Transactions</h2>
+          <div className="px-6 py-4.5 border-b border-slate-200 flex items-center justify-between">
+            <h2 className="text-sm font-extrabold text-slate-900 font-sans">Exchange Transactions</h2>
+            <span className="text-xs text-slate-500 font-sans">Real-time ledger entries</span>
           </div>
+
           <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead className="bg-slate-50 text-[10px] text-slate-500 uppercase tracking-wider border-b border-slate-200">
-                <tr>
-                  <th className="px-6 py-3.5">Tx ID</th>
-                  <th className="px-4 py-3.5">User</th>
-                  <th className="px-4 py-3.5">Type</th>
-                  <th className="px-4 py-3.5">Amount</th>
-                  <th className="px-4 py-3.5">USD Value</th>
-                  <th className="px-4 py-3.5">Status</th>
-                  <th className="px-6 py-3.5 text-right">Timestamp</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {transactions.map((tx) => (
-                  <tr key={tx.id} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="px-6 py-3.5 text-slate-800 font-medium truncate max-w-xs">{tx.id}</td>
-                    <td className="px-4 py-3.5 text-slate-900 font-bold">{tx.userId}</td>
-                    <td className="px-4 py-3.5 font-bold text-slate-900">{tx.type}</td>
-                    <td className="px-4 py-3.5 text-blue-700 font-bold">{tx.amount} {tx.asset}</td>
-                    <td className="px-4 py-3.5 text-slate-900">${tx.usdValue.toLocaleString()}</td>
-                    <td className="px-4 py-3.5">
-                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                        {tx.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-3.5 text-right text-slate-500 text-[11px]">
-                      {new Date(tx.createdAt).toLocaleString()}
-                    </td>
+            {transactions.length === 0 ? (
+              <div className="py-12 text-center text-slate-400">No transactions recorded yet.</div>
+            ) : (
+              <table className="w-full text-left">
+                <thead className="bg-slate-50 text-[10px] text-slate-500 uppercase tracking-wider border-b border-slate-200">
+                  <tr>
+                    <th className="px-6 py-3.5">TX ID</th>
+                    <th className="px-4 py-3.5">User</th>
+                    <th className="px-4 py-3.5">Type</th>
+                    <th className="px-4 py-3.5">Amount</th>
+                    <th className="px-4 py-3.5">Status</th>
+                    <th className="px-4 py-3.5">Blockchain TX</th>
+                    <th className="px-6 py-3.5 text-right">Timestamp</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {transactions.map((t) => (
+                    <tr key={t.id} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="px-6 py-3.5 font-bold text-slate-900">{t.id}</td>
+                      <td className="px-4 py-3.5 text-slate-700">{t.userId}</td>
+                      <td className="px-4 py-3.5 font-bold text-slate-900 font-sans">{t.type}</td>
+                      <td className="px-4 py-3.5 font-bold text-blue-700">
+                        {t.amount} {t.asset}
+                      </td>
+                      <td className="px-4 py-3.5 font-sans">
+                        <span
+                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                            t.status === 'COMPLETED'
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                              : 'bg-amber-50 text-amber-700 border border-amber-200'
+                          }`}
+                        >
+                          {t.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3.5 text-slate-500 truncate max-w-xs text-[11px]">
+                        {t.blockchainTxHash || 'Internal Ledger'}
+                      </td>
+                      <td className="px-6 py-3.5 text-right text-slate-500 text-[11px]">
+                        {new Date(t.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
+        </div>
+      )}
+
+      {/* TAB: SUPPORT DESK */}
+      {activeTab === 'support' && (
+        <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4 text-xs">
+          <h2 className="text-sm font-extrabold text-slate-900">Support Inquiries</h2>
+          {tickets.length === 0 ? (
+            <div className="py-12 text-center text-slate-400">No support tickets currently submitted.</div>
+          ) : (
+            <div className="space-y-4">
+              {tickets.map((t) => (
+                <div key={t.id} className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-slate-900">{t.userEmail} ({t.category})</span>
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${t.status === 'OPEN' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}`}>
+                      {t.status}
+                    </span>
+                  </div>
+                  <p className="text-slate-700">{t.message}</p>
+                  {t.adminResponse && (
+                    <div className="p-3 bg-white border border-slate-200 rounded-xl text-blue-800 font-semibold">
+                      Admin Response: {t.adminResponse}
+                    </div>
+                  )}
+                  {t.status === 'OPEN' && (
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="Type response..."
+                        value={ticketReply.id === t.id ? ticketReply.text : ''}
+                        onChange={(e) => setTicketReply({ id: t.id, text: e.target.value })}
+                        className="flex-1 bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:border-blue-500"
+                      />
+                      <button
+                        onClick={() => handleSendReply(t.id)}
+                        className="px-4 py-1.5 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors"
+                      >
+                        Reply
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB: AUDIT TRAIL */}
+      {activeTab === 'audit' && (
+        <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4 text-xs font-mono-numbers">
+          <h2 className="text-sm font-extrabold text-slate-900 font-sans">Administrative Audit Trail</h2>
+          {auditLogs.length === 0 ? (
+            <div className="py-12 text-center text-slate-400">No administrative actions logged yet.</div>
+          ) : (
+            <div className="space-y-2">
+              {auditLogs.map((log) => (
+                <div key={log.id} className="p-3 bg-slate-50 border border-slate-100 rounded-xl flex items-center justify-between text-[11px]">
+                  <div>
+                    <span className="font-bold text-slate-900">{log.action}</span> by{' '}
+                    <span className="text-blue-700 font-semibold">{log.adminEmail}</span> on {log.targetType} ({log.targetId})
+                  </div>
+                  <span className="text-slate-400">{new Date(log.createdAt).toLocaleString()}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>

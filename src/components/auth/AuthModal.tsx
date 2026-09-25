@@ -9,7 +9,7 @@ interface AuthModalProps {
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, defaultMode = 'login' }) => {
-  const { login, signup, switchRole } = useAuth();
+  const { login, signup } = useAuth();
   const [mode, setMode] = useState<'login' | 'signup' | 'forgot'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -49,7 +49,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, defaultMo
           setError(res.error || 'Failed to register.');
         } else {
           setSuccessNotice('Account successfully created! Welcome to NEXORA.');
-          setTimeout(() => onClose(), 1200);
+          setTimeout(() => onClose(), 1000);
         }
       } else if (mode === 'forgot') {
         setSuccessNotice(`Password recovery instructions sent to ${email}.`);
@@ -62,19 +62,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, defaultMo
     }
   };
 
-  const handleSelectTrader = () => {
-    switchRole('USER');
-    onClose();
-  };
-
-  const handleSelectAdmin = () => {
-    switchRole('ADMIN');
-    onClose();
-  };
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in text-xs">
-      <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-md p-7 shadow-2xl relative space-y-4">
+      <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-md p-7 shadow-2xl relative space-y-5">
         {/* Close Button */}
         <button
           onClick={onClose}
@@ -84,39 +74,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, defaultMo
         </button>
 
         {/* Brand Header */}
-        <div className="text-center space-y-1">
-          <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-blue-700 via-blue-600 to-indigo-600 mx-auto flex items-center justify-center font-bold text-white text-xl shadow-md shadow-blue-500/20">
+        <div className="text-center space-y-1.5">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-700 via-blue-600 to-indigo-600 mx-auto flex items-center justify-center font-bold text-white text-xl shadow-md shadow-blue-500/20">
             N
           </div>
-          <h2 className="text-lg font-extrabold text-slate-900">
-            {mode === 'login' ? 'Sign In to NEXORA' : mode === 'signup' ? 'Create NEXORA Account' : 'Password Recovery'}
+          <h2 className="text-xl font-extrabold text-slate-900">
+            {mode === 'login' ? 'Sign In to NEXORA' : mode === 'signup' ? 'Create Fresh NEXORA Account' : 'Password Recovery'}
           </h2>
           <p className="text-xs text-slate-500">
-            Cryptocurrency exchange &amp; audited ledger platform
+            Institutional crypto exchange &amp; audited ledger platform
           </p>
-        </div>
-
-        {/* Quick Role Select */}
-        <div className="p-3 bg-blue-50/80 rounded-2xl border border-blue-200 space-y-2">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-blue-900 block">
-            ⚡ Quick Direct Access:
-          </span>
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={handleSelectTrader}
-              className="py-2 px-2 bg-white hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-xl text-xs font-bold transition-all truncate shadow-2xs"
-            >
-              Verified Trader
-            </button>
-            <button
-              type="button"
-              onClick={handleSelectAdmin}
-              className="py-2 px-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all truncate shadow-2xs"
-            >
-              Exchange Admin
-            </button>
-          </div>
         </div>
 
         {/* Tabs for Login / Signup */}
@@ -144,7 +111,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, defaultMo
                 mode === 'signup' ? 'bg-white text-blue-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              Register
+              Register Account
             </button>
           </div>
         )}
@@ -165,7 +132,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, defaultMo
         )}
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-3.5">
+        <form onSubmit={handleSubmit} className="space-y-4">
           {mode === 'signup' && (
             <div>
               <label className="text-slate-700 font-bold block mb-1">Full Legal Name</label>
@@ -175,7 +142,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, defaultMo
                   type="text"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
-                  placeholder="e.g. John Doe"
+                  placeholder="e.g. Alex Morgan"
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-3.5 py-2.5 text-slate-900 focus:outline-none focus:border-blue-500 font-medium"
                   required
                 />
@@ -234,14 +201,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, defaultMo
             }`}
           >
             {loading
-              ? 'Verifying...'
+              ? 'Authenticating...'
               : mode === 'login'
               ? 'Sign In to Account'
               : mode === 'signup'
-              ? 'Create Account'
+              ? 'Create Fresh Account'
               : 'Send Reset Link'}
           </button>
         </form>
+
+        <div className="flex items-center justify-center gap-1.5 text-[11px] text-slate-500">
+          <ShieldCheck className="w-3.5 h-3.5 text-blue-600" />
+          <span>Encrypted Session • Zero Mock Data</span>
+        </div>
 
         {mode === 'forgot' && (
           <div className="text-center pt-1">

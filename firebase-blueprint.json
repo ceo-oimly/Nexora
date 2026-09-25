@@ -85,6 +85,66 @@
       },
       "required": ["userId", "type", "asset", "amount", "status", "createdAt"]
     },
+    "DepositRequest": {
+      "title": "DepositRequest",
+      "description": "User initiated deposit waiting for admin verification and credit",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "asset": { "type": "string" },
+        "network": { "type": "string" },
+        "amount": { "type": "number" },
+        "usdAmount": { "type": "number" },
+        "depositAddress": { "type": "string" },
+        "status": { "type": "string" },
+        "txHash": { "type": "string" },
+        "proofReceiptUrl": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["userId", "userEmail", "asset", "amount", "depositAddress", "txHash", "status"]
+    },
+    "WithdrawalRequest": {
+      "title": "WithdrawalRequest",
+      "description": "User initiated withdrawal awaiting admin approval",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "asset": { "type": "string" },
+        "amount": { "type": "number" },
+        "fee": { "type": "number" },
+        "netAmount": { "type": "number" },
+        "withdrawalType": { "type": "string" },
+        "destinationAddress": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["userId", "asset", "amount", "status", "withdrawalType"]
+    },
+    "AdminNotification": {
+      "title": "AdminNotification",
+      "description": "Immediate notification request sent to admin and solfeggioroots@gmail.com",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": "string" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "userId": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "asset": { "type": "string" },
+        "amount": { "type": "number" },
+        "requestId": { "type": "string" },
+        "emailRecipient": { "type": "string" },
+        "emailStatus": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "read": { "type": "boolean" }
+      },
+      "required": ["type", "title", "userId", "requestId", "emailRecipient"]
+    },
     "LedgerEntry": {
       "title": "LedgerEntry",
       "description": "Double-entry balance audit ledger entry",
@@ -169,6 +229,18 @@
     "/transactions/{transactionId}": {
       "schema": "Transaction",
       "description": "Stores all financial transaction activity"
+    },
+    "/deposits/{depositId}": {
+      "schema": "DepositRequest",
+      "description": "Stores user deposit submissions"
+    },
+    "/withdrawals/{withdrawalId}": {
+      "schema": "WithdrawalRequest",
+      "description": "Stores user withdrawal requests"
+    },
+    "/admin_notifications/{notificationId}": {
+      "schema": "AdminNotification",
+      "description": "Stores notifications dispatched to exchange administrator"
     },
     "/ledger_entries/{entryId}": {
       "schema": "LedgerEntry",

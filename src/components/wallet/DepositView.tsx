@@ -88,18 +88,30 @@ export const DepositView: React.FC<DepositViewProps> = ({ onDepositComplete }) =
 
       setSubmitting(false);
       setDepositSuccess(
-        `Deposit notification for ${btcAmount} BTC ($${parsedUsd.toLocaleString()}) submitted! Your transaction is awaiting administrative blockchain verification.`
+        `Deposit request for ${btcAmount} BTC ($${parsedUsd.toLocaleString()}) initiated! A request has been sent to the Admin and dispatched to the admin email address (solfeggioroots@gmail.com) for verification and wallet crediting.`
       );
       setTxHash('');
       setProofPreview('');
       onDepositComplete?.();
-    }, 700);
+    }, 600);
   };
 
   // User's deposits
   const userDeposits = user
     ? getAllDeposits().filter((d) => d.userId === user.userId)
     : [];
+
+  if (!user) {
+    return (
+      <div className="max-w-md mx-auto my-12 p-8 bg-white border border-slate-200 rounded-3xl text-center space-y-4 shadow-sm">
+        <ArrowDownLeft className="w-12 h-12 text-blue-600 mx-auto" />
+        <h2 className="text-xl font-bold text-slate-900">Sign In Required</h2>
+        <p className="text-xs text-slate-500">
+          Please sign in or create a fresh account to view your deposit instructions and submit transaction hashes.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">

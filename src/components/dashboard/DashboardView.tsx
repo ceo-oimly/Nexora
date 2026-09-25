@@ -19,7 +19,53 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
   const { user } = useAuth();
   const [chartTimeframe, setChartTimeframe] = useState<'7d' | '30d' | '90d'>('7d');
 
-  if (!user) return null;
+  if (!user) {
+    return (
+      <div className="space-y-8 py-8">
+        <div className="bg-gradient-to-tr from-blue-700 via-blue-600 to-indigo-700 rounded-3xl p-8 sm:p-12 text-white shadow-xl relative overflow-hidden text-center max-w-3xl mx-auto">
+          <div className="w-14 h-14 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center font-bold text-white text-2xl mx-auto mb-4 border border-white/20">
+            N
+          </div>
+          <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight">
+            Institutional Cryptocurrency Exchange
+          </h1>
+          <p className="text-blue-100 text-sm sm:text-base mt-3 max-w-xl mx-auto leading-relaxed">
+            Real-time Bitcoin order books, verifiable double-entry ledger tracking, administrator-approved withdrawals, and segregated multi-asset wallets.
+          </p>
+
+          <div className="flex flex-wrap items-center justify-center gap-3 mt-8">
+            <button
+              onClick={() => onNavigate('login')}
+              className="px-6 py-3 rounded-xl bg-white text-blue-700 hover:bg-blue-50 font-bold text-xs shadow-md transition-all active:scale-95"
+            >
+              Sign In to Account
+            </button>
+            <button
+              onClick={() => onNavigate('signup')}
+              className="px-6 py-3 rounded-xl bg-blue-800/80 hover:bg-blue-800 text-white border border-white/20 font-bold text-xs transition-all active:scale-95"
+            >
+              Register Fresh Account
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-8 pt-8 border-t border-white/15 text-left text-xs">
+            <div className="p-3 bg-white/10 rounded-xl">
+              <div className="font-bold text-white">Zero Mock Data</div>
+              <div className="text-blue-200 text-[11px] mt-0.5">Fresh accounts begin with pure zero-balance audited ledgers.</div>
+            </div>
+            <div className="p-3 bg-white/10 rounded-xl">
+              <div className="font-bold text-white">Admin Clearance</div>
+              <div className="text-blue-200 text-[11px] mt-0.5">Withdrawals and deposits require administrative validation.</div>
+            </div>
+            <div className="p-3 bg-white/10 rounded-xl">
+              <div className="font-bold text-white">Instant Notifications</div>
+              <div className="text-blue-200 text-[11px] mt-0.5">Immediate requests dispatched to exchange administration.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const portfolio = getPortfolioSummary(user.userId);
   const wallets = getUserWallets(user.userId);

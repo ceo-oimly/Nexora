@@ -145,6 +145,7 @@ export interface DepositRequest {
 export interface WithdrawalRequest {
   id: string;
   userId: string;
+  userEmail?: string;
   asset: AssetSymbol;
   amount: number;
   fee: number;
@@ -162,6 +163,24 @@ export interface WithdrawalRequest {
   txHash?: string;
   createdAt: string;
   completedAt?: string;
+}
+
+export interface AdminNotification {
+  id: string;
+  type: 'DEPOSIT_INITIATED' | 'WITHDRAWAL_INITIATED' | 'SUPPORT_TICKET';
+  title: string;
+  message: string;
+  userId: string;
+  userEmail: string;
+  asset: string;
+  amount: number;
+  usdAmount?: number;
+  requestId: string;
+  emailRecipient: string;
+  emailStatus: 'SENT' | 'PENDING';
+  emailBody?: string;
+  createdAt: string;
+  read: boolean;
 }
 
 export interface SupportTicket {

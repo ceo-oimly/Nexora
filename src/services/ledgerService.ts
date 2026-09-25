@@ -16,6 +16,7 @@ import {
 } from '../types/exchange';
 import { getCurrentPrice } from './marketService';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
+import { dispatchAdminEmailRequest } from './notificationService';
 import {
   collection,
   doc as firestoreDoc,
@@ -40,7 +41,7 @@ interface ExchangeDatabase {
   auditLogs: Record<string, AuditLog>;
 }
 
-const STORAGE_KEY = 'nexora_exchange_production_store_v2';
+const STORAGE_KEY = 'nexora_exchange_store_v3';
 
 const defaultDepositSettings: Record<string, DepositSetting> = {
   BTC: {
@@ -49,9 +50,9 @@ const defaultDepositSettings: Record<string, DepositSetting> = {
     network: 'Bitcoin Mainnet (Native SegWit)',
     walletAddress: 'bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq',
     qrCodeUrl: '',
-    instructions: 'Send only Bitcoin (BTC) to this address. Minimum deposit is 0.0001 BTC. Credit requires network confirmations and admin validation.',
+    instructions: 'Send only Bitcoin (BTC) to this address. Minimum deposit is 0.0001 BTC. Credit requires blockchain transaction verification by admin.',
     updatedAt: new Date().toISOString(),
-    updatedBy: 'System Administrator',
+    updatedBy: 'Administrator',
   },
 };
 
@@ -64,6 +65,7 @@ const getInitialStore = (): ExchangeDatabase => {
         parsed.depositSettings = defaultDepositSettings;
       }
       if (!parsed.deposits) parsed.deposits = {};
+      if (!parsed.withdrawals) parsed.withdrawals = {};
       return parsed;
     }
   } catch (e) {
@@ -110,43 +112,24 @@ export const syncDepositSettingsWithFirestore = async () => {
 };
 syncDepositSettingsWithFirestore();
 
-// Seed Default Admin Profile (Real Working Admin)
+// Seed Default Admin Profile (Zero Mock Balances, Fresh Accounts Only)
 export const seedInitialAccounts = () => {
-  const adminId = 'admin-nexora-01';
+  const adminId = 'admin_solfeggioroots';
   if (!store.profiles[adminId]) {
     store.profiles[adminId] = {
       id: adminId,
       userId: adminId,
-      email: 'ifeanyiobiora83@gmail.com', // Admin email
+      email: 'solfeggioroots@gmail.com',
       fullName: 'Exchange Administrator',
-      avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
-      country: 'United Kingdom',
+      avatarUrl: '',
+      country: 'International',
       role: 'ADMIN',
       status: 'ACTIVE',
       emailVerified: true,
-      createdAt: new Date(Date.now() - 60 * 24 * 3600 * 1000).toISOString(),
+      createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
-    initializeUserWallets(adminId, 250000, 5.0);
-  }
-
-  // Active Trader Profile
-  const traderId = 'trader-nexora-01';
-  if (!store.profiles[traderId]) {
-    store.profiles[traderId] = {
-      id: traderId,
-      userId: traderId,
-      email: 'trader@nexora.io',
-      fullName: 'Alex Morgan',
-      avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-      country: 'United States',
-      role: 'USER',
-      status: 'ACTIVE',
-      emailVerified: true,
-      createdAt: new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    initializeUserWallets(traderId, 15000, 0.45);
+    initializeUserWallets(adminId, 0, 0);
   }
 
   saveStore();
@@ -411,6 +394,25 @@ export const submitUserDeposit = (params: {
   };
 
   saveStore();
+
+  // Dispatch administrative notification & email alert to solfeggioroots@gmail.com
+  dispatchAdminEmailRequest({
+    type: 'DEPOSIT_INITIATED',
+    title: 'Bitcoin Deposit Initiated',
+    message: `User ${userEmail} initiated a deposit of ${amount} BTC ($${usdAmount.toLocaleString()}) to ${depositAddress}. TXID: ${txHash}`,
+    userId,
+    userEmail,
+    asset,
+    amount,
+    usdAmount,
+    requestId: depositId,
+    details: {
+      'Receiving BTC Address': depositAddress,
+      'Blockchain TXID': txHash,
+      'Proof Receipt Attached': proofReceiptUrl ? 'Yes' : 'No',
+    },
+  });
+
   return { success: true, deposit };
 };
 
@@ -924,6 +926,7 @@ export const getUserTransactions = (userId: string): Transaction[] => {
 // WITHDRAWALS
 export const requestWithdrawal = (params: {
   userId: string;
+  userEmail?: string;
   asset: AssetSymbol;
   amount: number;
   withdrawalType: 'CRYPTO' | 'BANK';
@@ -937,6 +940,7 @@ export const requestWithdrawal = (params: {
   };
 }): { success: boolean; message?: string; withdrawal?: WithdrawalRequest } => {
   const { userId, asset, amount, withdrawalType, destinationAddress, bankDetails } = params;
+  const userEmail = params.userEmail || store.profiles[userId]?.email || 'trader@nexora.io';
 
   if (amount <= 0 || isNaN(amount)) {
     return { success: false, message: 'Invalid withdrawal amount.' };
@@ -979,6 +983,7 @@ export const requestWithdrawal = (params: {
   const withdrawal: WithdrawalRequest = {
     id: withdrawalId,
     userId,
+    userEmail,
     asset,
     amount,
     fee,
@@ -1012,6 +1017,26 @@ export const requestWithdrawal = (params: {
   };
 
   saveStore();
+
+  // Dispatch administrative notification & email alert to solfeggioroots@gmail.com
+  dispatchAdminEmailRequest({
+    type: 'WITHDRAWAL_INITIATED',
+    title: 'Withdrawal Clearance Request',
+    message: `User ${userEmail} requested withdrawal of ${amount} ${asset} (Fee: ${fee} ${asset}).`,
+    userId,
+    userEmail,
+    asset,
+    amount,
+    usdAmount: usdValue,
+    requestId: withdrawalId,
+    details: {
+      'Withdrawal Method': withdrawalType,
+      'Destination': withdrawalType === 'CRYPTO' ? destinationAddress || 'N/A' : `${bankDetails?.accountHolder} - ${bankDetails?.bankName} (Acct: ${bankDetails?.accountNumber})`,
+      'Requested Amount': `${amount} ${asset}`,
+      'Network/Processing Fee': `${fee} ${asset}`,
+    },
+  });
+
   return { success: true, withdrawal };
 };
 

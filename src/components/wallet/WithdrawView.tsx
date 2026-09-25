@@ -69,6 +69,7 @@ export const WithdrawView: React.FC<WithdrawViewProps> = ({ onWithdrawComplete }
     setSubmitting(true);
     const result = requestWithdrawal({
       userId: user.userId,
+      userEmail: user.email,
       asset: 'BTC',
       amount: parsedCryptoAmount,
       withdrawalType: 'CRYPTO',
@@ -80,7 +81,7 @@ export const WithdrawView: React.FC<WithdrawViewProps> = ({ onWithdrawComplete }
       setMessage({ text: result.message || 'Withdrawal failed.', isError: true });
     } else {
       setMessage({
-        text: `Withdrawal request for ${parsedCryptoAmount} BTC submitted successfully! Your funds are reserved in the vault pending compliance clearance.`,
+        text: `Withdrawal request for ${parsedCryptoAmount} BTC initiated! Funds have been vault-reserved. A clearance request has been sent to the Admin and dispatched to the admin email address (solfeggioroots@gmail.com) for approval.`,
       });
       setCryptoAmount('');
       setCryptoAddress('');
@@ -100,6 +101,7 @@ export const WithdrawView: React.FC<WithdrawViewProps> = ({ onWithdrawComplete }
     setSubmitting(true);
     const result = requestWithdrawal({
       userId: user.userId,
+      userEmail: user.email,
       asset: 'USD',
       amount: parsedUsdAmount,
       withdrawalType: 'BANK',
@@ -117,11 +119,23 @@ export const WithdrawView: React.FC<WithdrawViewProps> = ({ onWithdrawComplete }
       setMessage({ text: result.message || 'Withdrawal failed.', isError: true });
     } else {
       setMessage({
-        text: `Bank wire withdrawal request for $${parsedUsdAmount.toLocaleString()} submitted successfully! Funds are held securely pending processing.`,
+        text: `Bank wire withdrawal request for $${parsedUsdAmount.toLocaleString()} initiated! Funds have been vault-reserved. A clearance request has been sent to the Admin and dispatched to the admin email address (solfeggioroots@gmail.com) for approval.`,
       });
       onWithdrawComplete?.();
     }
   };
+
+  if (!user) {
+    return (
+      <div className="max-w-md mx-auto my-12 p-8 bg-white border border-slate-200 rounded-3xl text-center space-y-4 shadow-sm">
+        <ArrowUpRight className="w-12 h-12 text-blue-600 mx-auto" />
+        <h2 className="text-xl font-bold text-slate-900">Sign In Required</h2>
+        <p className="text-xs text-slate-500">
+          Please sign in or create a fresh account to view your available balances and initiate withdrawals.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">

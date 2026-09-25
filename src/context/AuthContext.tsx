@@ -1,10 +1,11 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { UserProfile, UserRole } from '../types/exchange';
+import { UserProfile } from '../types/exchange';
 import {
   getUserProfile,
   createProfile,
   updateUserProfile,
   seedInitialAccounts,
+  initializeUserWallets,
 } from '../services/ledgerService';
 
 interface AuthContextType {
@@ -14,7 +15,6 @@ interface AuthContextType {
   login: (email: string, pass: string) => Promise<{ success: boolean; error?: string }>;
   signup: (fullName: string, email: string, pass: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
-  switchRole: (role: 'USER' | 'ADMIN') => void;
   updateUserAvatar: (avatarUrl: string) => void;
   updateUserData: (fullName: string, country: string) => void;
   verifyCurrentEmail: () => void;
@@ -22,7 +22,38 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const AUTH_STORAGE_KEY = 'nexora_auth_user_id_v2';
+const AUTH_STORAGE_KEY = 'nexora_auth_user_v3';
+const USER_CREDENTIALS_KEY = 'nexora_user_creds_v3';
+
+// Default Admin configuration specified by user
+const ADMIN_EMAIL = 'solfeggioroots@gmail.com';
+const ADMIN_PASS = 'moneynatheformula';
+
+interface StoredCredential {
+  email: string;
+  pass: string;
+  userId: string;
+}
+
+const getStoredCredentials = (): Record<string, StoredCredential> => {
+  try {
+    const raw = localStorage.getItem(USER_CREDENTIALS_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch (e) {
+    // Ignore
+  }
+  return {};
+};
+
+const saveCredential = (email: string, pass: string, userId: string) => {
+  try {
+    const creds = getStoredCredentials();
+    creds[email.toLowerCase()] = { email: email.toLowerCase(), pass, userId };
+    localStorage.setItem(USER_CREDENTIALS_KEY, JSON.stringify(creds));
+  } catch (e) {
+    // Ignore
+  }
+};
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<UserProfile | null>(null);
@@ -36,72 +67,116 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (existing) {
         setUser(existing);
       } else {
-        const defaultTrader = getUserProfile('trader-nexora-01');
-        if (defaultTrader) setUser(defaultTrader);
+        localStorage.removeItem(AUTH_STORAGE_KEY);
+        setUser(null);
       }
     } else {
-      const defaultTrader = getUserProfile('trader-nexora-01');
-      if (defaultTrader) {
-        setUser(defaultTrader);
-        localStorage.setItem(AUTH_STORAGE_KEY, defaultTrader.userId);
-      }
+      // No mock auto-login! User and Admin must log in with fresh account.
+      setUser(null);
     }
     setLoading(false);
   }, []);
 
   const login = async (email: string, pass: string) => {
-    const knownProfiles = ['trader-nexora-01', 'admin-nexora-01'];
-    for (const pid of knownProfiles) {
-      const p = getUserProfile(pid);
-      if (p && p.email.toLowerCase() === email.toLowerCase()) {
-        if (p.status === 'SUSPENDED') {
-          return { success: false, error: 'Your account has been suspended by the exchange administrator.' };
-        }
-        setUser(p);
-        localStorage.setItem(AUTH_STORAGE_KEY, p.userId);
-        return { success: true };
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanPass = pass.trim();
+
+    // 1. Admin Login Verification
+    if (cleanEmail === ADMIN_EMAIL.toLowerCase()) {
+      if (cleanPass !== ADMIN_PASS) {
+        return { success: false, error: 'Incorrect administrator password.' };
       }
+
+      const adminId = 'admin_solfeggioroots';
+      let adminProfile = getUserProfile(adminId);
+      if (!adminProfile) {
+        adminProfile = createProfile({
+          id: adminId,
+          userId: adminId,
+          email: ADMIN_EMAIL,
+          fullName: 'Exchange Administrator',
+          role: 'ADMIN',
+          status: 'ACTIVE',
+          emailVerified: true,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
+        initializeUserWallets(adminId, 0, 0);
+      }
+
+      setUser(adminProfile);
+      localStorage.setItem(AUTH_STORAGE_KEY, adminProfile.userId);
+      return { success: true };
     }
 
-    const userId = `usr_${Math.abs(email.split('').reduce((a, b) => ((a << 5) - a + b.charCodeAt(0)) | 0, 0))}`;
-    let existing = getUserProfile(userId);
-    if (!existing) {
-      existing = createProfile({
-        id: userId,
-        userId,
-        email,
-        fullName: email.split('@')[0].toUpperCase(),
-        role: email.includes('admin') || email === 'ifeanyiobiora83@gmail.com' ? 'ADMIN' : 'USER',
-        status: 'ACTIVE',
-        emailVerified: true,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      });
+    // 2. Fresh User Login Verification
+    const creds = getStoredCredentials();
+    const userCred = creds[cleanEmail];
+
+    if (userCred) {
+      if (userCred.pass !== cleanPass) {
+        return { success: false, error: 'Invalid password. Please check your credentials.' };
+      }
+      const profile = getUserProfile(userCred.userId);
+      if (!profile) {
+        return { success: false, error: 'User profile not found.' };
+      }
+      if (profile.status === 'SUSPENDED') {
+        return { success: false, error: 'Your account has been suspended by compliance.' };
+      }
+      setUser(profile);
+      localStorage.setItem(AUTH_STORAGE_KEY, profile.userId);
+      return { success: true };
     }
 
-    if (existing.status === 'SUSPENDED') {
-      return { success: false, error: 'Account suspended.' };
-    }
-
-    setUser(existing);
-    localStorage.setItem(AUTH_STORAGE_KEY, existing.userId);
-    return { success: true };
+    return {
+      success: false,
+      error: 'Account not found. Please click Register to create a fresh account.',
+    };
   };
 
   const signup = async (fullName: string, email: string, pass: string) => {
-    const userId = `usr_${Date.now()}`;
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanPass = pass.trim();
+
+    if (!cleanEmail || !cleanPass) {
+      return { success: false, error: 'Email and password are required.' };
+    }
+
+    // If signing up as admin email
+    if (cleanEmail === ADMIN_EMAIL.toLowerCase()) {
+      if (cleanPass !== ADMIN_PASS) {
+        return { success: false, error: 'Admin registration requires the authorized administrator password.' };
+      }
+      return login(cleanEmail, cleanPass);
+    }
+
+    // Check if user already exists
+    const creds = getStoredCredentials();
+    if (creds[cleanEmail]) {
+      return { success: false, error: 'An account with this email already exists. Please sign in.' };
+    }
+
+    const userId = `usr_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
     const newProfile: UserProfile = {
       id: userId,
       userId,
-      email,
-      fullName,
-      role: email === 'ifeanyiobiora83@gmail.com' ? 'ADMIN' : 'USER',
+      email: cleanEmail,
+      fullName: fullName.trim(),
+      role: 'USER',
       status: 'ACTIVE',
-      emailVerified: false,
+      emailVerified: true,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
+
     createProfile(newProfile);
+    // Initialize fresh empty wallets: 0 USD, 0 BTC (No Mock Data!)
+    initializeUserWallets(userId, 0, 0);
+
+    // Save credentials locally for login persistence
+    saveCredential(cleanEmail, cleanPass, userId);
+
     setUser(newProfile);
     localStorage.setItem(AUTH_STORAGE_KEY, newProfile.userId);
     return { success: true };
@@ -110,15 +185,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = () => {
     setUser(null);
     localStorage.removeItem(AUTH_STORAGE_KEY);
-  };
-
-  const switchRole = (role: 'USER' | 'ADMIN') => {
-    const targetId = role === 'ADMIN' ? 'admin-nexora-01' : 'trader-nexora-01';
-    const profile = getUserProfile(targetId);
-    if (profile) {
-      setUser(profile);
-      localStorage.setItem(AUTH_STORAGE_KEY, profile.userId);
-    }
   };
 
   const updateUserAvatar = (avatarUrl: string) => {
@@ -148,7 +214,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         login,
         signup,
         logout,
-        switchRole,
         updateUserAvatar,
         updateUserData,
         verifyCurrentEmail,

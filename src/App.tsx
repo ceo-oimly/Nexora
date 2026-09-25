@@ -42,6 +42,8 @@ const AppContent: React.FC = () => {
         onNavigate={(tab) => {
           if (tab === 'login') {
             handleOpenAuth('login');
+          } else if (tab === 'signup') {
+            handleOpenAuth('signup');
           } else {
             setCurrentTab(tab);
           }
