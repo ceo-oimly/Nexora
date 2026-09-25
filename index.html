@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      (function() {
+        try {
+          var win = window;
+          var nativeFetch = typeof win.fetch === 'function' ? win.fetch.bind(win) : null;
+          var activeFetch = null;
+          var desc = Object.getOwnPropertyDescriptor(win, 'fetch');
+          if (!desc || desc.set === undefined) {
+            Object.defineProperty(win, 'fetch', {
+              get: function() {
+                return activeFetch || nativeFetch;
+              },
+              set: function(fn) {
+                activeFetch = fn;
+              },
+              configurable: true,
+              enumerable: true
+            });
+          }
+        } catch (e) {
+          try {
+            var proto = Object.getPrototypeOf(window);
+            if (proto) {
+              var pDesc = Object.getOwnPropertyDescriptor(proto, 'fetch');
+              if (pDesc && pDesc.configurable && !pDesc.set) {
+                var pNative = pDesc.get ? pDesc.get.call(window) : window.fetch;
+                var pAssigned = null;
+                Object.defineProperty(proto, 'fetch', {
+                  get: function() { return pAssigned || pNative; },
+                  set: function(v) { pAssigned = v; },
+                  configurable: true,
+                  enumerable: true
+                });
+              }
+            }
+          } catch (e2) {}
+        }
+      })();
+    </script>
+    <title>NEXORA - Crypto Trading &amp; Wallet Platform</title>
+    <meta name="description" content="Institutional cryptocurrency exchange and portfolio terminal with real-time order books, live trading charts, multi-asset wallets, and verifiable ledger tracking." />
+    <meta property="og:title" content="NEXORA - Crypto Trading &amp; Wallet Platform" />
+    <meta property="og:description" content="Institutional cryptocurrency exchange and portfolio terminal with real-time order books, live trading charts, multi-asset wallets, and verifiable ledger tracking." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  </head>
+  <body class="bg-[#f0f4f9] text-slate-800 font-sans antialiased selection:bg-blue-600/20 selection:text-blue-700 min-h-screen">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+

@@ -1,0 +1,190 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile with role, status, and personal details",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "email": { "type": "string" },
+        "fullName": { "type": "string" },
+        "avatarUrl": { "type": "string" },
+        "country": { "type": "string" },
+        "role": { "type": "string", "enum": ["USER", "ADMIN"] },
+        "status": { "type": "string", "enum": ["ACTIVE", "SUSPENDED"] },
+        "emailVerified": { "type": "boolean" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["userId", "email", "fullName", "role", "status"]
+    },
+    "Wallet": {
+      "title": "Wallet",
+      "description": "User wallet balance for BTC and USD assets",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "asset": { "type": "string", "enum": ["BTC", "USD"] },
+        "symbol": { "type": "string" },
+        "name": { "type": "string" },
+        "availableBalance": { "type": "number" },
+        "lockedBalance": { "type": "number" },
+        "totalBalance": { "type": "number" },
+        "usdEquivalent": { "type": "number" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["userId", "asset", "availableBalance", "lockedBalance", "totalBalance"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "Crypto trading order placed on the order book",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "pair": { "type": "string" },
+        "type": { "type": "string", "enum": ["MARKET", "LIMIT", "STOP_LIMIT"] },
+        "side": { "type": "string", "enum": ["BUY", "SELL"] },
+        "price": { "type": "number" },
+        "limitPrice": { "type": "number" },
+        "stopPrice": { "type": "number" },
+        "amount": { "type": "number" },
+        "filledAmount": { "type": "number" },
+        "remainingAmount": { "type": "number" },
+        "fee": { "type": "number" },
+        "total": { "type": "number" },
+        "status": { "type": "string", "enum": ["PENDING", "OPEN", "PARTIALLY_FILLED", "FILLED", "CANCELLED", "REJECTED"] },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["userId", "pair", "type", "side", "amount", "status", "createdAt"]
+    },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "Ledger-backed transaction records for deposits, withdrawals, and trades",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "type": { "type": "string", "enum": ["DEPOSIT", "WITHDRAWAL", "TRADE_BUY", "TRADE_SELL"] },
+        "asset": { "type": "string" },
+        "amount": { "type": "number" },
+        "usdValue": { "type": "number" },
+        "status": { "type": "string", "enum": ["PENDING", "PROCESSING", "CONFIRMING", "COMPLETED", "FAILED", "REJECTED", "CANCELLED"] },
+        "source": { "type": "string" },
+        "destination": { "type": "string" },
+        "networkFee": { "type": "number" },
+        "confirmations": { "type": "number" },
+        "requiredConfirmations": { "type": "number" },
+        "blockchainTxHash": { "type": "string" },
+        "isDemo": { "type": "boolean" },
+        "createdAt": { "type": "string" },
+        "completedAt": { "type": "string" }
+      },
+      "required": ["userId", "type", "asset", "amount", "status", "createdAt"]
+    },
+    "LedgerEntry": {
+      "title": "LedgerEntry",
+      "description": "Double-entry balance audit ledger entry",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "walletId": { "type": "string" },
+        "transactionId": { "type": "string" },
+        "entryType": { "type": "string" },
+        "asset": { "type": "string" },
+        "amount": { "type": "number" },
+        "balanceBefore": { "type": "number" },
+        "balanceAfter": { "type": "number" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["userId", "walletId", "entryType", "asset", "amount", "balanceBefore", "balanceAfter"]
+    },
+    "SupportTicket": {
+      "title": "SupportTicket",
+      "description": "Customer support ticket and administrative response",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "category": { "type": "string" },
+        "message": { "type": "string" },
+        "status": { "type": "string", "enum": ["OPEN", "IN_PROGRESS", "RESOLVED", "CLOSED"] },
+        "adminResponse": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["userId", "userEmail", "category", "message", "status"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Administrative action security audit log",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "adminId": { "type": "string" },
+        "adminEmail": { "type": "string" },
+        "action": { "type": "string" },
+        "targetType": { "type": "string" },
+        "targetId": { "type": "string" },
+        "metadata": { "type": "object" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["adminId", "action", "targetType", "createdAt"]
+    },
+    "DepositSetting": {
+      "title": "DepositSetting",
+      "description": "Admin configured deposit wallet addresses and QR codes",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "asset": { "type": "string" },
+        "network": { "type": "string" },
+        "walletAddress": { "type": "string" },
+        "qrCodeUrl": { "type": "string" },
+        "instructions": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "updatedBy": { "type": "string" }
+      },
+      "required": ["asset", "walletAddress"]
+    }
+  },
+  "firestore": {
+    "/profiles/{userId}": {
+      "schema": "UserProfile",
+      "description": "Stores user profiles with authentication and role info"
+    },
+    "/wallets/{walletId}": {
+      "schema": "Wallet",
+      "description": "Stores individual asset wallets for users"
+    },
+    "/orders/{orderId}": {
+      "schema": "Order",
+      "description": "Stores buy and sell orders"
+    },
+    "/transactions/{transactionId}": {
+      "schema": "Transaction",
+      "description": "Stores all financial transaction activity"
+    },
+    "/ledger_entries/{entryId}": {
+      "schema": "LedgerEntry",
+      "description": "Stores audit-proof financial ledger entries"
+    },
+    "/support_tickets/{ticketId}": {
+      "schema": "SupportTicket",
+      "description": "Stores customer support inquiries and resolutions"
+    },
+    "/audit_logs/{logId}": {
+      "schema": "AuditLog",
+      "description": "Stores administrator operational audit records"
+    },
+    "/deposit_settings/{settingId}": {
+      "schema": "DepositSetting",
+      "description": "Stores admin-configured deposit addresses and QR codes"
+    }
+  }
+}

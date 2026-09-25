@@ -1,0 +1,6 @@
+{
+  "name": "NEXORA - Crypto Trading & Wallet Platform",
+  "description": "Institutional-grade cryptocurrency exchange and portfolio terminal with real-time order books, live trading charts, multi-asset wallets, and verifiable ledger tracking.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
